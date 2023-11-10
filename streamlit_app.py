@@ -63,7 +63,7 @@ Helpful Answer:
 
 def get_answer(tpl, prompt, samples):
     tpl = PromptTemplate.from_template(tpl)
-    llm = OpenAI(openai_api_key=st.secrets('OPENAI_API_KEY'), model_name='gpt-4')
+    llm = OpenAI(openai_api_key=st.secrets['OPENAI_API_KEY'], model_name='gpt-4')
     docs = RecursiveCharacterTextSplitter(chunk_size = 5000, chunk_overlap = 10).create_documents(samples)
     chain = load_qa_chain(llm, prompt=tpl, verbose=True)
     return chain.run(input_documents=docs, question=prompt)
@@ -83,11 +83,13 @@ def generate(ad_text, zip, beds, baths, pool):
 # FORM
 ############################################
 
+dt = "A RARE FIND IN LAKENONA! GENTLY USED AND FAIRLY NEW LUXURY HOUSE AVAILABLE AT ENCLAVE AT VILLAGE WALK, LOCATED IN THE HEART OF LAKE NONA, THE FASTEST GROWING MASTER PLANNED CITY WITH WORLD CLASS AMENITIES. This luxury executive SUNCHASE model with a balcony upstairs is situated on a peaceful tree-lined street with beautiful curb appeal, the home is built on a .22-acre homesite. Mature trees and a manicured yard frame the attractive faade complete with stonework, barrel tiled roof and a brick paver driveway. House features a secondary master bedroom on the first floor, 3-car garage with 8'0 front door, open floor plan with 42 upgraded Cabinets, large kitchen island, extended patio with screen enclosure, security cameras around the house, fruit trees, upgraded tiles throughout the house except in bedrooms, ceiling fans, and motion-activated security lighting, ensuring comfort and peace of mind. Designed for entertaining, built-in wine closet, grand open spaces dressed in custom touches, turn moments into memories. Enclave is the perfect gated community with natural gas connected and grounds care done by HOA, access to excellent schools, community events, fantastic dining options & an array of new local shops. Village Walk is a 24hour guard gated master-planned maintenance free community in highly desirable Lake Nona, which is located minutes from the airport, Orlandos premiere dining & the new medical city, USTA National Campus and new KPMG facility. The HOA covers 1 gigabit internet, cable, landscape maintenance, and access to an array of amenities. Play a match on the clay tennis courts, take a refreshing dip in the recreation and lap pools, or stay in shape at the fitness center. The quality resort-style amenities at this community are exceptional, from the moment you arrive at the 24 hrs gate guarded entrance, the impeccable private roads, the up-scale 26, 000 square foot town center, state of the art fitness center, Resort style swimming pool, heated lap pool, 6 lighted clay tennis courts, gas station, post office, Salon, Spa, Photo studio, basketball court, lakeside gazebo and miles of walking /biking paths and pedestrian bridges, library/business center, card room, on-site-lifestyle & activity director, multi-purpose ballroom, to mention some of the amenities. Priced to sell! Schedule a showing TODAY!"
+
 with st.form("property_form"):
-    ad_text = st.text_area("Please enter the ad you want to optimize", height=300)
-    zip = st.text_input("What is property zipcode?", max_chars=5)
-    beds = st.number_input("How many beds?", max_value=9, min_value=1)
-    baths = st.number_input("How many baths?", max_value=9, min_value=1)
+    ad_text = st.text_area("Please enter the ad you want to optimize", height=300, value=dt)
+    zip = st.text_input("What is property zipcode?", max_chars=5, value="34785")
+    beds = st.number_input("How many beds?", max_value=9, min_value=1, value=3)
+    baths = st.number_input("How many baths?", max_value=9, min_value=1, value=2)
     pool = st.checkbox("Has a pool?")
     submitted = st.form_submit_button(label="Generate")
     if submitted:

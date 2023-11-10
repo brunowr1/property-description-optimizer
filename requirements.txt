@@ -1,6 +1,5 @@
 altair
 pandas
 streamlit
-json
 langchain
 openai
