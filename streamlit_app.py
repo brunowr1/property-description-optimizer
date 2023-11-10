@@ -2,39 +2,99 @@ import altair as alt
 import numpy as np
 import pandas as pd
 import streamlit as st
+import time
+import json
+from datetime import datetime
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.chains.question_answering import load_qa_chain
+from langchain import OpenAI
+from langchain.prompts import PromptTemplate
 
 """
-# Welcome to Streamlit!
-
-Edit `/streamlit_app.py` to customize this app to your heart's desire :heart:.
-If you have any questions, checkout our [documentation](https://docs.streamlit.io) and [community
-forums](https://discuss.streamlit.io).
-
-In the meantime, below is an example of what you can do with just a few lines of code:
+# Property ad optimizer
+Add your property `description`, a few data points and zap! We will optimize your ad based on the ads that helped the fastest sold homes near you.
 """
 
-num_points = st.slider("Number of points in spiral", 1, 10000, 1100)
-num_turns = st.slider("Number of turns in spiral", 1, 300, 31)
+############################################
+# GET DATA FROM REALTOR
+############################################
 
-indices = np.linspace(0, 1, num_points)
-theta = 2 * np.pi * num_turns * indices
-radius = indices
+def get_comps():
+    with open('reator_data.json', 'r') as f:
+        data = json.load(f)
 
-x = radius * np.cos(theta)
-y = radius * np.sin(theta)
+    filtered_data = []
+    for r in data:
+        fields = ['url', 'text', 'soldOn', 'lastSoldPrice', 'listPrice', 'baths', 'beds', 'sqft', 'year_built']
+        values = {k:v for k, v in r.items() if k in fields}
+        values['soldOn'] = datetime.strptime(values['soldOn'][:10], '%Y-%m-%d')
+        values['listedDate'] = r['history'][0]['listing']['list_date']
+        values['listedDate'] = datetime.strptime(values['listedDate'][:10], '%Y-%m-%d')
+        values['timeToSell'] = (values['soldOn'] - values['listedDate']).days
+        filtered_data.append(values)
 
-df = pd.DataFrame({
-    "x": x,
-    "y": y,
-    "idx": indices,
-    "rand": np.random.randn(num_points),
-})
+    filtered_data = pd.DataFrame(filtered_data)
 
-st.altair_chart(alt.Chart(df, height=700, width=700)
-    .mark_point(filled=True)
-    .encode(
-        x=alt.X("x", axis=None),
-        y=alt.Y("y", axis=None),
-        color=alt.Color("idx", legend=None, scale=alt.Scale()),
-        size=alt.Size("rand", legend=None, scale=alt.Scale(range=[1, 150])),
-    ))
+    return filtered_data[filtered_data.timeToSell > 1].sort_values('timeToSell')[:5]['text'].tolist()
+
+############################################
+# PROMPT
+############################################
+prompt_template = """
+You are a realtor advertising a new home on Zillow. Your goal is to sell it as soon as possible. 
+Below are templates of home advertisement descriptions that sold very fast in the same market with similar configurations. 
+
+--- TEMPLATES BEGIN HERE ---
+{context}
+--- TEMPLATES END HERE ---
+
+Think step-by-step about what makes these templates sell faster than the copy provided. 
+Rewrite the text below based on the learnings extracted from templates. 
+{question}
+Explain your rationale after providing you answer.
+
+---
+Helpful Answer:
+"""
+
+############################################
+# GET ANSWER FROM CHATGPT
+############################################
+
+def get_answer(tpl, prompt, samples):
+    tpl = PromptTemplate.from_template(tpl)
+    llm = OpenAI(openai_api_key=st.secrets('OPENAI_API_KEY'), model_name='gpt-4')
+    docs = RecursiveCharacterTextSplitter(chunk_size = 5000, chunk_overlap = 10).create_documents(samples)
+    chain = load_qa_chain(llm, prompt=tpl, verbose=True)
+    return chain.run(input_documents=docs, question=prompt)
+
+############################################
+# GENERATE RESPONSE
+############################################
+
+def generate(ad_text, zip, beds, baths, pool):
+    samples = get_comps()
+    with st.spinner('Processing'):
+        answer = get_answer(prompt_template, ad_text, samples)
+        st.write(answer)
+        st.success('Done!')
+
+############################################
+# FORM
+############################################
+
+with st.form("property_form"):
+    ad_text = st.text_area("Please enter the ad you want to optimize", height=300)
+    zip = st.text_input("What is property zipcode?", max_chars=5)
+    beds = st.number_input("How many beds?", max_value=9, min_value=1)
+    baths = st.number_input("How many baths?", max_value=9, min_value=1)
+    pool = st.checkbox("Has a pool?")
+    submitted = st.form_submit_button(label="Generate")
+    if submitted:
+       if len(ad_text) < 100:
+            st.error("Your property ad needs at least 100 characters")
+            st.stop()
+       if len(zip) != 5:
+            st.error("Please enter a valid zip")
+            st.stop()
+       generate(ad_text, zip, beds, baths, pool)
