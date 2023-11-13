@@ -10,10 +10,11 @@ from langchain.chains.question_answering import load_qa_chain
 from langchain import OpenAI
 from langchain.prompts import PromptTemplate
 import google.generativeai as palm
+from openai import OpenAI
 
 """
-# Property ad optimizer
-Add your property `description`, a few data points and zap! We will optimize your ad based on the ads that helped the fastest sold homes near you.
+# Property Ad Optimizer
+Sell your home faster through better copy. Just add your property `description` and a few data points to get a brand new description based on the fastest selling homes in your area.
 """
 
 ############################################
@@ -52,10 +53,9 @@ Below are templates of home advertisement descriptions that sold very fast in th
 Think step-by-step about what makes these templates sell faster than the copy provided. 
 Rewrite the text below based on the learnings extracted from templates. 
 {question}
-Explain your rationale after providing you answer.
 
 ---
-Helpful Answer:
+Answer in JSON format with the properties (answer, rationale)
 """
 
 ############################################
@@ -63,11 +63,15 @@ Helpful Answer:
 ############################################
 
 def get_answer(tpl, prompt, samples):
-    tpl = PromptTemplate.from_template(tpl)
-    llm = OpenAI(openai_api_key=st.secrets['OPENAI_API_KEY'], model_name='gpt-4')
-    docs = RecursiveCharacterTextSplitter(chunk_size = 5000, chunk_overlap = 10).create_documents(samples)
-    chain = load_qa_chain(llm, prompt=tpl)
-    return chain.run(input_documents=docs, question=prompt)
+    #tpl = PromptTemplate.from_template(tpl)
+    #llm = OpenAI(openai_api_key=st.secrets['OPENAI_API_KEY'], model_name='gpt-4')
+    #docs = RecursiveCharacterTextSplitter(chunk_size = 5000, chunk_overlap = 10).create_documents(samples)
+    client = OpenAI(api_key=st.secrets['OPENAI_API_KEY'])
+    completion = client.chat.completions.create(model="gpt-4", messages=[
+            {"role": "user", "content": tpl.format(context='\n'.join(samples), question=prompt)}
+        ]
+    )
+    return json.loads(completion.choices[0].message.content)
 
 def get_answer_google(tpl, prompt, samples):
     palm.configure(api_key=st.secrets['GOOGLE_API_KEY'])
@@ -80,7 +84,7 @@ def get_answer_google(tpl, prompt, samples):
         # The maximum length of the response
         max_output_tokens=50000,
     )
-    return completion.result
+    return json.loads(completion.result)
 
 ############################################
 # GENERATE RESPONSE
@@ -89,8 +93,11 @@ def get_answer_google(tpl, prompt, samples):
 def generate(ad_text, zip, beds, baths, pool):
     samples = get_comps()
     with st.spinner('Processing'):
-        answer = get_answer_google(prompt_template, ad_text, samples)
-        st.write(answer)
+        answer = get_answer(prompt_template, ad_text, samples)
+        st.header("New description")
+        st.write(answer["answer"])
+        st.header("Rationale")
+        st.write(answer["rationale"])
         st.success('Done!')
 
 ############################################
